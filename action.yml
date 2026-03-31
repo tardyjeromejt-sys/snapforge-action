@@ -1,0 +1,115 @@
+name: 'SnapForge Generate'
+description: 'Generate OG images, QR codes, PDFs, placeholders and more with SnapForge API'
+author: 'Jerome T.'
+
+branding:
+  icon: 'image'
+  color: 'purple'
+
+inputs:
+  api-key:
+    description: 'Your SnapForge API key (from usesnapforge.com/dashboard)'
+    required: false
+  type:
+    description: 'Asset type to generate: og, qr, pdf, placeholder, resize, metadata'
+    required: true
+  template:
+    description: 'Template name for OG images (blog, product, social, event, article, github, minimal, gradient, stats, announcement)'
+    required: false
+    default: 'blog'
+  title:
+    description: 'Title text for OG images'
+    required: false
+    default: 'Hello World'
+  theme:
+    description: 'Theme for OG images (light or dark)'
+    required: false
+    default: 'light'
+  text:
+    description: 'Text/URL content for QR codes'
+    required: false
+  url:
+    description: 'URL for metadata extraction'
+    required: false
+  width:
+    description: 'Width for placeholder/resize'
+    required: false
+    default: '600'
+  height:
+    description: 'Height for placeholder/resize'
+    required: false
+    default: '400'
+  bg-color:
+    description: 'Background color (hex without #)'
+    required: false
+    default: 'cccccc'
+  fg-color:
+    description: 'Foreground/text color (hex without #)'
+    required: false
+    default: '666666'
+  output-path:
+    description: 'Path to save the generated file'
+    required: false
+    default: './snapforge-output'
+
+outputs:
+  url:
+    description: 'Direct URL to the generated asset'
+  file-path:
+    description: 'Local path to the downloaded file'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate SnapForge asset
+      shell: bash
+      run: |
+        mkdir -p ${{ inputs.output-path }}
+
+        BASE_URL="https://api.usesnapforge.com"
+        HEADERS=""
+        if [ -n "${{ inputs.api-key }}" ]; then
+          HEADERS="-H 'Authorization: Bearer ${{ inputs.api-key }}'"
+        fi
+
+        case "${{ inputs.type }}" in
+          og)
+            URL="${BASE_URL}/og/${{ inputs.template }}?title=${{ inputs.title }}&theme=${{ inputs.theme }}"
+            OUTPUT_FILE="${{ inputs.output-path }}/og-image.png"
+            curl -sL "$URL" -o "$OUTPUT_FILE"
+            ;;
+          qr)
+            URL="${BASE_URL}/qr?text=${{ inputs.text }}&fg=${{ inputs.fg-color }}&bg=${{ inputs.bg-color }}"
+            OUTPUT_FILE="${{ inputs.output-path }}/qr-code.png"
+            curl -sL "$URL" -o "$OUTPUT_FILE"
+            ;;
+          placeholder)
+            URL="${BASE_URL}/placeholder/${{ inputs.width }}x${{ inputs.height }}/${{ inputs.bg-color }}/${{ inputs.fg-color }}"
+            OUTPUT_FILE="${{ inputs.output-path }}/placeholder.svg"
+            curl -sL "$URL" -o "$OUTPUT_FILE"
+            ;;
+          metadata)
+            URL="${BASE_URL}/meta?url=${{ inputs.url }}"
+            OUTPUT_FILE="${{ inputs.output-path }}/metadata.json"
+            curl -sL "$URL" -o "$OUTPUT_FILE"
+            ;;
+          resize)
+            URL="${BASE_URL}/resize?url=${{ inputs.url }}&width=${{ inputs.width }}&height=${{ inputs.height }}"
+            OUTPUT_FILE="${{ inputs.output-path }}/resized.webp"
+            curl -sL "$URL" -o "$OUTPUT_FILE"
+            ;;
+          pdf)
+            URL="${BASE_URL}/pdf/${{ inputs.template }}"
+            OUTPUT_FILE="${{ inputs.output-path }}/document.pdf"
+            curl -sL "$URL" $HEADERS -o "$OUTPUT_FILE"
+            ;;
+          *)
+            echo "::error::Unknown type: ${{ inputs.type }}. Use: og, qr, pdf, placeholder, resize, metadata"
+            exit 1
+            ;;
+        esac
+
+        echo "url=$URL" >> $GITHUB_OUTPUT
+        echo "file-path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+        echo "Generated: $OUTPUT_FILE"
+        echo "URL: $URL"
